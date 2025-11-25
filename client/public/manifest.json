@@ -1,0 +1,22 @@
+{
+  "name": "NOCTURNE - Luxury Gothic Fashion",
+  "short_name": "NOCTURNE",
+  "description": "Exclusive gothic fashion artifacts. Cyber-gothic meets Victorian elegance.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#080808",
+  "theme_color": "#000000",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/favicon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/favicon.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

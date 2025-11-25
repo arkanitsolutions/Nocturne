@@ -83,8 +83,30 @@
   body {
     @apply font-serif antialiased bg-background text-foreground;
     font-feature-settings: "ss01", "ss02", "cv01", "cv02";
-    perspective: 1000px; /* Global perspective for 3D effects */
+    perspective: 1000px;
     overflow-x: hidden;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: pan-y;
+  }
+
+  /* Mobile viewport fix */
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  /* Scrollbar hiding */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Safe area for mobile devices */
+  .safe-area-pb {
+    padding-bottom: env(safe-area-inset-bottom);
   }
 }
 
