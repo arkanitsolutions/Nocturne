@@ -7,6 +7,9 @@ import chromeCross from "@assets/generated_images/3d_rendered_chrome_gothic_cros
 export default function Home() {
   return (
     <div className="min-h-screen bg-black text-foreground selection:bg-white selection:text-black overflow-x-hidden">
+      {/* CRT Overlay */}
+      <div className="scanlines" />
+      
       <NavBar />
       
       <main>
@@ -23,7 +26,7 @@ export default function Home() {
                  <motion.img
                   src={chromeCross}
                   alt="Chrome Cross"
-                  className="absolute -top-32 -left-32 w-64 h-64 opacity-20 mix-blend-lighten pointer-events-none blur-sm"
+                  className="absolute -top-32 -left-32 w-64 h-64 opacity-30 mix-blend-lighten pointer-events-none blur-sm"
                   animate={{ 
                     rotate: [0, 360],
                     y: [0, 20, 0] 
@@ -44,7 +47,7 @@ export default function Home() {
                     THE <span className="font-serif italic text-metal">MIDNIGHT</span> <br />
                     COLLECTION
                   </h2>
-                  <div className="w-24 h-1 bg-white/20 mt-6 mb-8 skew-x-[-20deg]" />
+                  <div className="w-24 h-1 bg-white mt-6 mb-8 skew-x-[-20deg] shadow-[0_0_10px_white]" />
                 </motion.div>
 
                 <motion.p 
@@ -86,12 +89,12 @@ export default function Home() {
           </div>
         </section>
         
-        <footer className="pb-32 pt-12 text-center relative z-10">
-          <h1 className="font-gothic text-[15vw] text-white/5 leading-none select-none pointer-events-none absolute bottom-0 left-1/2 -translate-x-1/2 -z-10">NOCTURNE</h1>
+        <footer className="pb-32 pt-12 text-center relative z-10 overflow-hidden">
+          <h1 className="font-gothic text-[15vw] text-white/5 leading-none select-none pointer-events-none absolute bottom-0 left-1/2 -translate-x-1/2 -z-10 whitespace-nowrap">NOCTURNE</h1>
           <div className="flex justify-center gap-8 mb-8 font-display text-xs tracking-widest text-white/60">
-            <a href="#" className="hover:text-white transition-colors">INSTAGRAM</a>
-            <a href="#" className="hover:text-white transition-colors">TWITTER</a>
-            <a href="#" className="hover:text-white transition-colors">DISCORD</a>
+            <a href="#" className="hover:text-white hover:scale-110 transition-all">INSTAGRAM</a>
+            <a href="#" className="hover:text-white hover:scale-110 transition-all">TWITTER</a>
+            <a href="#" className="hover:text-white hover:scale-110 transition-all">DISCORD</a>
           </div>
           <p className="font-mono text-[10px] text-white/30 tracking-widest">
             © 2025 • MOCKUP MODE
