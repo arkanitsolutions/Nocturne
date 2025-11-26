@@ -1,0 +1,10 @@
+DATABASE_URL=postgresql://neondb_owner:npg_KiClZ59szxBU@ep-small-bread-adgk1khx-pooler.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require
+VITE_FIREBASE_API_KEY=AIzaSyATN7Ki99bqhpCeYUcVZLIMJvVX6Poxfmg
+VITE_FIREBASE_PROJECT_ID=clothingstore-d2254
+VITE_FIREBASE_APP_ID=1:160460803106:web:735eaaf3be0244e7eb4e7b
+CLOUDINARY_CLOUD_NAME=dt9mruele
+CLOUDINARY_API_KEY=275256671716413
+CLOUDINARY_API_SECRET=ehmQomtddZYSe6HpiDRUXZ-Ac-U
+JWT_SECRET=nocturne-admin-secret-change-in-production
+NODE_ENV=production
+
