@@ -166,7 +166,11 @@ export class DatabaseStorage implements IStorage {
       },
     ];
 
-    // Clear existing products and insert fresh ones with correct images
+    // Clear existing data and insert fresh products with correct images
+    // Delete in order to respect foreign key constraints
+    await db.delete(cartItems);
+    await db.delete(wishlistItems);
+    await db.delete(productReviews);
     await db.delete(products);
 
     for (const product of sampleProducts) {
@@ -203,6 +207,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteProduct(id: string): Promise<void> {
+    // Delete related records first (foreign key constraints)
+    await db.delete(cartItems).where(eq(cartItems.productId, id));
+    await db.delete(wishlistItems).where(eq(wishlistItems.productId, id));
+    await db.delete(productReviews).where(eq(productReviews.productId, id));
+    // Now delete the product
     await db.delete(products).where(eq(products.id, id));
   }
 
