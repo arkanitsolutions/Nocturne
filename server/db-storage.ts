@@ -38,9 +38,12 @@ export class DatabaseStorage implements IStorage {
       // Create tables if they don't exist
       await this.createTables();
 
-      // Check if products table has data, if not seed it
+      // Check if products have valid images, reseed if needed
       const existingProducts = await db.select().from(products).limit(1);
-      if (existingProducts.length === 0) {
+      const needsReseed = existingProducts.length === 0 ||
+        (existingProducts[0]?.image && existingProducts[0].image.startsWith('/assets'));
+
+      if (needsReseed) {
         console.log("📦 Seeding database with sample products...");
         await this.seedProducts();
       }
