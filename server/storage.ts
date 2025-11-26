@@ -1,12 +1,16 @@
-import { 
-  type Product, 
+import {
+  type Product,
   type InsertProduct,
   type CartItem,
   type InsertCartItem,
   type Order,
   type InsertOrder,
   type OrderItem,
-  type InsertOrderItem
+  type InsertOrderItem,
+  type WishlistItem,
+  type InsertWishlistItem,
+  type ProductReview,
+  type InsertProductReview
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 
@@ -17,23 +21,36 @@ export interface IStorage {
   getProductsByCategory(category: string): Promise<Product[]>;
   getFeaturedProducts(): Promise<Product[]>;
   createProduct(product: InsertProduct): Promise<Product>;
-  
+  updateProduct(id: string, product: Partial<InsertProduct>): Promise<Product | undefined>;
+  deleteProduct(id: string): Promise<void>;
+
   // Cart
   getCartItems(userId: string): Promise<CartItem[]>;
   addToCart(item: InsertCartItem): Promise<CartItem>;
   updateCartItemQuantity(id: string, quantity: number): Promise<CartItem | undefined>;
   removeFromCart(id: string): Promise<void>;
   clearCart(userId: string): Promise<void>;
-  
+
   // Orders
   getOrders(userId: string): Promise<Order[]>;
   getOrder(id: string): Promise<Order | undefined>;
   createOrder(order: InsertOrder): Promise<Order>;
   updateOrderStatus(id: string, status: string): Promise<Order | undefined>;
-  
+
   // Order Items
   getOrderItems(orderId: string): Promise<OrderItem[]>;
   createOrderItem(item: InsertOrderItem): Promise<OrderItem>;
+
+  // Wishlist
+  getWishlistItems(userId: string): Promise<WishlistItem[]>;
+  addToWishlist(item: InsertWishlistItem): Promise<WishlistItem>;
+  removeFromWishlist(id: string): Promise<void>;
+  isInWishlist(userId: string, productId: string): Promise<boolean>;
+
+  // Reviews
+  getProductReviews(productId: string): Promise<ProductReview[]>;
+  createReview(review: InsertProductReview): Promise<ProductReview>;
+  getProductRating(productId: string): Promise<{ average: number; count: number }>;
 }
 
 export class MemStorage implements IStorage {
@@ -41,12 +58,16 @@ export class MemStorage implements IStorage {
   private cartItems: Map<string, CartItem>;
   private orders: Map<string, Order>;
   private orderItems: Map<string, OrderItem>;
+  private wishlistItems: Map<string, WishlistItem>;
+  private productReviews: Map<string, ProductReview>;
 
   constructor() {
     this.products = new Map();
     this.cartItems = new Map();
     this.orders = new Map();
     this.orderItems = new Map();
+    this.wishlistItems = new Map();
+    this.productReviews = new Map();
     this.seedProducts();
   }
 
@@ -126,6 +147,20 @@ export class MemStorage implements IStorage {
     return product;
   }
 
+  async updateProduct(id: string, updates: Partial<InsertProduct>): Promise<Product | undefined> {
+    const product = this.products.get(id);
+    if (product) {
+      const updated = { ...product, ...updates };
+      this.products.set(id, updated);
+      return updated;
+    }
+    return undefined;
+  }
+
+  async deleteProduct(id: string): Promise<void> {
+    this.products.delete(id);
+  }
+
   async getCartItems(userId: string): Promise<CartItem[]> {
     return Array.from(this.cartItems.values()).filter(item => item.userId === userId);
   }
@@ -202,6 +237,70 @@ export class MemStorage implements IStorage {
     this.orderItems.set(id, item);
     return item;
   }
+
+  // Wishlist methods
+  async getWishlistItems(userId: string): Promise<WishlistItem[]> {
+    return Array.from(this.wishlistItems.values()).filter(item => item.userId === userId);
+  }
+
+  async addToWishlist(insertItem: InsertWishlistItem): Promise<WishlistItem> {
+    const id = randomUUID();
+    const item: WishlistItem = { ...insertItem, id, createdAt: new Date() };
+    this.wishlistItems.set(id, item);
+    return item;
+  }
+
+  async removeFromWishlist(id: string): Promise<void> {
+    this.wishlistItems.delete(id);
+  }
+
+  async isInWishlist(userId: string, productId: string): Promise<boolean> {
+    return Array.from(this.wishlistItems.values()).some(
+      item => item.userId === userId && item.productId === productId
+    );
+  }
+
+  // Review methods
+  async getProductReviews(productId: string): Promise<ProductReview[]> {
+    return Array.from(this.productReviews.values())
+      .filter(review => review.productId === productId)
+      .sort((a, b) => new Date(b.createdAt!).getTime() - new Date(a.createdAt!).getTime());
+  }
+
+  async createReview(insertReview: InsertProductReview): Promise<ProductReview> {
+    const id = randomUUID();
+    const review: ProductReview = { ...insertReview, id, createdAt: new Date() };
+    this.productReviews.set(id, review);
+    return review;
+  }
+
+  async getProductRating(productId: string): Promise<{ average: number; count: number }> {
+    const reviews = await this.getProductReviews(productId);
+    if (reviews.length === 0) return { average: 0, count: 0 };
+
+    const sum = reviews.reduce((acc, review) => acc + review.rating, 0);
+    return {
+      average: Math.round((sum / reviews.length) * 10) / 10,
+      count: reviews.length
+    };
+  }
 }
 
-export const storage = new MemStorage();
+// Storage selection logic:
+// 1. If DATABASE_URL is set, use PostgreSQL (DatabaseStorage)
+// 2. Otherwise, use in-memory storage (MemStorage)
+
+let storage: IStorage;
+
+if (process.env.DATABASE_URL) {
+  // Dynamic import to avoid loading pg when not needed
+  const { DatabaseStorage } = await import("./db-storage");
+  storage = new DatabaseStorage();
+  console.log("📦 Using PostgreSQL database storage");
+} else {
+  storage = new MemStorage();
+  console.log("📦 Using In-Memory storage (data will be lost on restart!)");
+  console.log("⚠️  Set DATABASE_URL to use PostgreSQL for persistent storage");
+}
+
+export { storage };

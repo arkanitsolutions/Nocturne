@@ -1,8 +1,10 @@
+import "dotenv/config";
 import fs from "node:fs";
 import { type Server } from "node:http";
-import path from "node:path";
+import path from "path";
 
 import type { Express } from "express";
+import express from "express";
 import { nanoid } from "nanoid";
 import { createServer as createViteServer, createLogger } from "vite";
 
@@ -32,6 +34,10 @@ export async function setupVite(app: Express, server: Server) {
     server: serverOptions,
     appType: "custom",
   });
+
+  // Serve static assets from attached_assets folder
+  const assetsPath = path.resolve(import.meta.dirname, "..", "attached_assets");
+  app.use("/assets", express.static(assetsPath));
 
   app.use(vite.middlewares);
   app.use("*", async (req, res, next) => {

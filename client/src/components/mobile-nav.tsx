@@ -8,8 +8,8 @@ import { auth } from "@/lib/firebase";
 
 export function MobileNav() {
   const [location] = useLocation();
-  const user = auth.currentUser;
-  
+  const user = auth?.currentUser || null;
+
   const { data: cartItems = [] } = useQuery({
     queryKey: ["cart", user?.uid],
     queryFn: () => user ? api.cart.get(user.uid) : Promise.resolve([]),

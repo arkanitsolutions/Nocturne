@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import { useLocation } from "wouter";
 
 export default function Checkout() {
-  const user = auth.currentUser;
+  const user = auth?.currentUser || null;
   const queryClient = useQueryClient();
   const [, setLocation] = useLocation();
   const [paymentMethod, setPaymentMethod] = useState<"razorpay" | "phonepe">("razorpay");

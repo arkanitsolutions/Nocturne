@@ -4,3 +4,26 @@ dist
 server/public
 vite.config.ts.*
 *.tar.gz
+
+# Environment files (contains secrets)
+.env
+.env.local
+.env.*.local
+
+# Local files
+.local/
+
+# Flutter build files
+nocturne_flutter/build/
+nocturne_flutter/.dart_tool/
+nocturne_flutter/.packages
+nocturne_flutter/android/.gradle/
+nocturne_flutter/android/local.properties
+*.apk
+
+# IDE
+.idea/
+*.iml
+
+# Test files
+test-*.js

@@ -14,7 +14,7 @@ interface ProductCardProps {
 
 export function ProductCard({ product }: ProductCardProps) {
   const [quantity, setQuantity] = useState(0);
-  const user = auth.currentUser;
+  const user = auth?.currentUser || null;
   const queryClient = useQueryClient();
 
   const { data: cartItems = [] } = useQuery({
