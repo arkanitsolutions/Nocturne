@@ -129,7 +129,7 @@ export class DatabaseStorage implements IStorage {
         name: "Velvet Corset",
         description: "Bound in shadows, draped in night. Victorian elegance meets cyber-gothic perfection.",
         price: "450.00",
-        image: "/assets/generated_images/luxury_black_velvet_corset_product_shot.png",
+        image: "https://images.unsplash.com/photo-1558171813-4c088753af8f?w=800&h=1000&fit=crop",
         category: "Corsets",
         stock: 5,
         featured: true,
@@ -138,7 +138,7 @@ export class DatabaseStorage implements IStorage {
         name: "Gothic Lace Gown",
         description: "Ethereal darkness embodied in delicate lace and flowing silk.",
         price: "850.00",
-        image: "/assets/generated_images/luxury_black_velvet_corset_product_shot.png",
+        image: "https://images.unsplash.com/photo-1595777457583-95e059d581b8?w=800&h=1000&fit=crop",
         category: "Dresses",
         stock: 3,
         featured: true,
@@ -147,7 +147,7 @@ export class DatabaseStorage implements IStorage {
         name: "Victorian Choker",
         description: "Sterling silver with obsidian accents. A statement of eternal elegance.",
         price: "180.00",
-        image: "/assets/generated_images/3d_rendered_chrome_gothic_cross.png",
+        image: "https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=800&h=1000&fit=crop",
         category: "Jewelry",
         stock: 12,
         featured: false,
@@ -156,12 +156,15 @@ export class DatabaseStorage implements IStorage {
         name: "Shadow Cloak",
         description: "Midnight velvet with silver embroidered runes. Command the night.",
         price: "620.00",
-        image: "/assets/generated_images/luxury_black_velvet_corset_product_shot.png",
+        image: "https://images.unsplash.com/photo-1551488831-00ddcb6c6bd3?w=800&h=1000&fit=crop",
         category: "Outerwear",
         stock: 7,
         featured: true,
       },
     ];
+
+    // Clear existing products and insert fresh ones with correct images
+    await db.delete(products);
 
     for (const product of sampleProducts) {
       await db.insert(products).values(product);
