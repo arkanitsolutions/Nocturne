@@ -1,12 +1,23 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { motion } from "framer-motion";
-import { ArrowLeft, Heart, ShoppingBag, Star, User } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { ArrowLeft, Heart, ShoppingBag, Star, User, Ruler, X, Check } from "lucide-react";
 import { auth, onAuthChange } from "@/lib/firebase";
 import type { User as FirebaseUser } from "firebase/auth";
 import { useLocation, useRoute } from "wouter";
 import { toast } from "sonner";
+
+type SizeKey = 'XS' | 'S' | 'M' | 'L' | 'XL' | 'XXL';
+
+const SIZE_CHART = {
+  XS: { chest: '32-34"', waist: '24-26"', hips: '34-36"' },
+  S: { chest: '34-36"', waist: '26-28"', hips: '36-38"' },
+  M: { chest: '36-38"', waist: '28-30"', hips: '38-40"' },
+  L: { chest: '38-40"', waist: '30-32"', hips: '40-42"' },
+  XL: { chest: '40-42"', waist: '32-34"', hips: '42-44"' },
+  XXL: { chest: '42-44"', waist: '34-36"', hips: '44-46"' },
+};
 
 export default function ProductDetail() {
   const [user, setUser] = useState<FirebaseUser | null>(null);
@@ -16,6 +27,8 @@ export default function ProductDetail() {
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState("");
   const [showReviewForm, setShowReviewForm] = useState(false);
+  const [selectedSize, setSelectedSize] = useState<SizeKey | null>(null);
+  const [showSizeGuide, setShowSizeGuide] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthChange((firebaseUser) => {
@@ -50,13 +63,25 @@ export default function ProductDetail() {
     enabled: !!user && !!productId,
   });
 
+  // Check if product has sizes
+  const hasSizes = product?.sizes && Object.values(product.sizes).some(qty => qty > 0);
+  const availableSizes = product?.sizes ? (Object.entries(product.sizes) as [SizeKey, number][]).filter(([_, qty]) => qty > 0) : [];
+
   const addToCartMutation = useMutation({
-    mutationFn: () => api.cart.add(user!.uid, productId, 1),
+    mutationFn: () => api.cart.add(user!.uid, productId, 1, selectedSize || undefined),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["cart", user?.uid] });
       toast.success("Added to cart!");
     },
   });
+
+  const handleAddToCart = () => {
+    if (hasSizes && !selectedSize) {
+      toast.error("Please select a size");
+      return;
+    }
+    addToCartMutation.mutate();
+  };
 
   const toggleWishlistMutation = useMutation({
     mutationFn: async () => {
@@ -189,6 +214,61 @@ export default function ProductDetail() {
               <p className="text-zinc-300 leading-relaxed">{product.description}</p>
             </div>
 
+            {/* Size Selector */}
+            {hasSizes && (
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm text-zinc-500 tracking-wider uppercase">Select Size</h3>
+                  <button
+                    onClick={() => setShowSizeGuide(true)}
+                    className="flex items-center gap-1 text-sm text-zinc-400 hover:text-white transition-colors"
+                  >
+                    <Ruler className="w-4 h-4" />
+                    Size Guide
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  {(['XS', 'S', 'M', 'L', 'XL', 'XXL'] as SizeKey[]).map((size) => {
+                    const sizeStock = product.sizes?.[size] || 0;
+                    const isAvailable = sizeStock > 0;
+                    const isSelected = selectedSize === size;
+
+                    return (
+                      <button
+                        key={size}
+                        onClick={() => isAvailable && setSelectedSize(size)}
+                        disabled={!isAvailable}
+                        className={`
+                          relative w-14 h-14 rounded-xl border-2 font-medium transition-all
+                          ${isSelected
+                            ? 'bg-white text-black border-white'
+                            : isAvailable
+                              ? 'bg-white/5 border-white/20 hover:border-white/50 text-white'
+                              : 'bg-zinc-900/50 border-zinc-800 text-zinc-600 cursor-not-allowed line-through'
+                          }
+                        `}
+                      >
+                        {size}
+                        {isSelected && (
+                          <Check className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 text-white rounded-full p-0.5" />
+                        )}
+                        {isAvailable && sizeStock <= 3 && (
+                          <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 text-[10px] text-orange-400">
+                            {sizeStock} left
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+                {selectedSize && (
+                  <p className="text-sm text-green-400 mt-3">
+                    {product.sizes?.[selectedSize]} available in size {selectedSize}
+                  </p>
+                )}
+              </div>
+            )}
+
             {/* Stock Status */}
             <div>
               <h3 className="text-sm text-zinc-500 tracking-wider uppercase mb-3">Availability</h3>
@@ -200,12 +280,12 @@ export default function ProductDetail() {
             {/* Actions */}
             <div className="flex gap-4">
               <button
-                onClick={() => user && addToCartMutation.mutate()}
-                disabled={!user || product.stock === 0}
+                onClick={() => user && handleAddToCart()}
+                disabled={!user || product.stock === 0 || (hasSizes && !selectedSize)}
                 className="flex-1 bg-white text-black py-4 rounded-full font-medium hover:bg-zinc-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 <ShoppingBag className="w-5 h-5" />
-                {!user ? "Sign in to purchase" : product.stock === 0 ? "Out of Stock" : "Add to Cart"}
+                {!user ? "Sign in to purchase" : product.stock === 0 ? "Out of Stock" : hasSizes && !selectedSize ? "Select Size" : "Add to Cart"}
               </button>
 
               {user && (
@@ -349,6 +429,89 @@ export default function ProductDetail() {
           </div>
         </div>
       </div>
+
+      {/* Size Guide Modal */}
+      <AnimatePresence>
+        {showSizeGuide && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+            onClick={() => setShowSizeGuide(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-gradient-to-br from-zinc-900 via-black to-zinc-900 border border-white/10 rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-hidden shadow-2xl"
+            >
+              {/* Header */}
+              <div className="p-6 border-b border-white/10 flex justify-between items-center bg-white/5">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-white/10 rounded-xl">
+                    <Ruler className="w-5 h-5 text-white" />
+                  </div>
+                  <h3 className="font-serif text-2xl font-light text-white tracking-wide">Size Guide</h3>
+                </div>
+                <button
+                  onClick={() => setShowSizeGuide(false)}
+                  className="p-2 hover:bg-white/10 rounded-full transition-all"
+                >
+                  <X className="w-5 h-5 text-zinc-400 hover:text-white" />
+                </button>
+              </div>
+
+              {/* Content */}
+              <div className="p-6 overflow-y-auto max-h-[calc(90vh-100px)]">
+                <p className="text-zinc-400 text-sm mb-6">
+                  Find your perfect fit with our comprehensive size guide. All measurements are in inches.
+                </p>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse">
+                    <thead>
+                      <tr className="border-b border-white/10">
+                        <th className="text-left py-3 px-4 text-sm text-zinc-500 font-medium">Size</th>
+                        <th className="text-left py-3 px-4 text-sm text-zinc-500 font-medium">Chest</th>
+                        <th className="text-left py-3 px-4 text-sm text-zinc-500 font-medium">Waist</th>
+                        <th className="text-left py-3 px-4 text-sm text-zinc-500 font-medium">Hips</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(Object.entries(SIZE_CHART) as [SizeKey, typeof SIZE_CHART.XS][]).map(([size, measurements]) => (
+                        <tr
+                          key={size}
+                          className={`border-b border-white/5 ${selectedSize === size ? 'bg-white/10' : 'hover:bg-white/5'}`}
+                        >
+                          <td className="py-3 px-4 font-medium text-white">{size}</td>
+                          <td className="py-3 px-4 text-zinc-300">{measurements.chest}</td>
+                          <td className="py-3 px-4 text-zinc-300">{measurements.waist}</td>
+                          <td className="py-3 px-4 text-zinc-300">{measurements.hips}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="mt-6 p-4 bg-white/5 border border-white/10 rounded-xl">
+                  <h4 className="text-sm font-medium text-white mb-2">How to Measure</h4>
+                  <ul className="text-sm text-zinc-400 space-y-2">
+                    <li>• <strong className="text-zinc-300">Chest:</strong> Measure around the fullest part of your chest</li>
+                    <li>• <strong className="text-zinc-300">Waist:</strong> Measure around your natural waistline</li>
+                    <li>• <strong className="text-zinc-300">Hips:</strong> Measure around the fullest part of your hips</li>
+                  </ul>
+                </div>
+
+                <p className="text-xs text-zinc-500 mt-4 text-center">
+                  If you're between sizes, we recommend sizing up for a more comfortable fit.
+                </p>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

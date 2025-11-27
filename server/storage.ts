@@ -10,7 +10,9 @@ import {
   type WishlistItem,
   type InsertWishlistItem,
   type ProductReview,
-  type InsertProductReview
+  type InsertProductReview,
+  type Coupon,
+  type InsertCoupon
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 
@@ -35,7 +37,7 @@ export interface IStorage {
   getOrders(userId: string): Promise<Order[]>;
   getOrder(id: string): Promise<Order | undefined>;
   createOrder(order: InsertOrder): Promise<Order>;
-  updateOrderStatus(id: string, status: string): Promise<Order | undefined>;
+  updateOrderStatus(id: string, status: string, trackingNumber?: string): Promise<Order | undefined>;
 
   // Order Items
   getOrderItems(orderId: string): Promise<OrderItem[]>;
@@ -51,6 +53,28 @@ export interface IStorage {
   getProductReviews(productId: string): Promise<ProductReview[]>;
   createReview(review: InsertProductReview): Promise<ProductReview>;
   getProductRating(productId: string): Promise<{ average: number; count: number }>;
+
+  // Coupons
+  getCoupons(): Promise<Coupon[]>;
+  getCoupon(id: string): Promise<Coupon | undefined>;
+  getCouponByCode(code: string): Promise<Coupon | undefined>;
+  validateCoupon(code: string, orderTotal: number): Promise<{ valid: boolean; coupon?: Coupon; discount?: number; error?: string }>;
+  createCoupon(coupon: InsertCoupon): Promise<Coupon>;
+  updateCoupon(id: string, updates: Partial<InsertCoupon>): Promise<Coupon | undefined>;
+  deleteCoupon(id: string): Promise<void>;
+  incrementCouponUsage(code: string): Promise<void>;
+
+  // Analytics
+  getAnalytics(): Promise<{
+    totalRevenue: number;
+    totalOrders: number;
+    totalProducts: number;
+    totalCustomers: number;
+    recentOrders: Order[];
+    topProducts: { productId: string; name: string; totalSold: number; revenue: number }[];
+    salesByDay: { date: string; revenue: number; orders: number }[];
+    ordersByStatus: { status: string; count: number }[];
+  }>;
 }
 
 export class MemStorage implements IStorage {

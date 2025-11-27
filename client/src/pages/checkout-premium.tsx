@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { motion } from "framer-motion";
-import { ArrowLeft, CreditCard, Wallet, CheckCircle } from "lucide-react";
+import { ArrowLeft, CreditCard, Wallet, CheckCircle, Tag, X, Ticket } from "lucide-react";
 import { auth, onAuthChange } from "@/lib/firebase";
 import type { User } from "firebase/auth";
 import { useLocation } from "wouter";
@@ -20,6 +20,12 @@ export default function CheckoutPremium() {
   const queryClient = useQueryClient();
   const [paymentMethod, setPaymentMethod] = useState<"razorpay" | "phonepe">("razorpay");
   const [isProcessing, setIsProcessing] = useState(false);
+
+  // Coupon state
+  const [couponCode, setCouponCode] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discount: number; discountType: string } | null>(null);
+  const [couponError, setCouponError] = useState("");
+  const [isValidatingCoupon, setIsValidatingCoupon] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthChange((firebaseUser) => {
@@ -48,16 +54,58 @@ export default function CheckoutPremium() {
     enabled: !!user,
   });
 
-  const total = cartItems.reduce((sum, item) => {
+  const subtotal = cartItems.reduce((sum, item) => {
     const price = parseFloat(item.product?.price || "0");
     return sum + price * item.quantity;
   }, 0);
+
+  const discount = appliedCoupon?.discount || 0;
+  const total = Math.max(0, subtotal - discount);
+
+  // Validate coupon
+  const handleApplyCoupon = async () => {
+    if (!couponCode.trim()) return;
+
+    setIsValidatingCoupon(true);
+    setCouponError("");
+
+    try {
+      const result = await api.coupons.validate(couponCode.trim(), subtotal);
+
+      if (result.valid && result.coupon && result.discount !== undefined) {
+        setAppliedCoupon({
+          code: result.coupon.code,
+          discount: result.discount,
+          discountType: result.coupon.discountType,
+        });
+        setCouponCode("");
+        toast.success(`Coupon applied! You save ₹${result.discount.toLocaleString()}`);
+      } else {
+        setCouponError(result.error || "Invalid coupon");
+      }
+    } catch (error) {
+      setCouponError("Failed to validate coupon");
+    } finally {
+      setIsValidatingCoupon(false);
+    }
+  };
+
+  const removeCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponError("");
+    toast.info("Coupon removed");
+  };
 
   const createOrderMutation = useMutation({
     mutationFn: async (paymentId: string) => {
       const order = await api.orders.create(
         {
           userId: user!.uid,
+          userEmail: user!.email || undefined,
+          userName: user!.displayName || undefined,
+          subtotal: subtotal.toString(),
+          discount: discount.toString(),
+          couponCode: appliedCoupon?.code || undefined,
           total: total.toString(),
           status: "pending",
           paymentMethod,
@@ -67,6 +115,7 @@ export default function CheckoutPremium() {
           productId: item.productId,
           quantity: item.quantity,
           price: item.product?.price || "0",
+          size: item.size || undefined,
         }))
       );
 
@@ -285,11 +334,65 @@ export default function CheckoutPremium() {
               <div className="sticky top-24 bg-white/5 border border-white/10 rounded-2xl p-6 space-y-6">
                 <h3 className="text-xl font-light tracking-wide">Payment Summary</h3>
 
+                {/* Coupon Code Section */}
                 <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-sm text-zinc-400">
+                    <Ticket className="w-4 h-4" />
+                    <span>Have a promo code?</span>
+                  </div>
+
+                  {appliedCoupon ? (
+                    <div className="flex items-center justify-between p-3 bg-green-500/10 border border-green-500/30 rounded-xl">
+                      <div className="flex items-center gap-2">
+                        <Tag className="w-4 h-4 text-green-400" />
+                        <span className="text-green-400 font-medium">{appliedCoupon.code}</span>
+                        <span className="text-green-400/70 text-sm">
+                          (-₹{appliedCoupon.discount.toLocaleString()})
+                        </span>
+                      </div>
+                      <button
+                        onClick={removeCoupon}
+                        className="p-1 hover:bg-white/10 rounded-full transition-all"
+                      >
+                        <X className="w-4 h-4 text-zinc-400 hover:text-white" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={couponCode}
+                          onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                          placeholder="Enter coupon code"
+                          className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-white/30 placeholder:text-zinc-600 uppercase"
+                        />
+                        <button
+                          onClick={handleApplyCoupon}
+                          disabled={isValidatingCoupon || !couponCode.trim()}
+                          className="px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-sm font-medium hover:bg-white/20 transition-all disabled:opacity-50"
+                        >
+                          {isValidatingCoupon ? "..." : "Apply"}
+                        </button>
+                      </div>
+                      {couponError && (
+                        <p className="text-sm text-red-400">{couponError}</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-3 border-t border-white/10 pt-4">
                   <div className="flex justify-between text-sm">
                     <span className="text-zinc-400">Subtotal</span>
-                    <span>₹{total.toLocaleString()}</span>
+                    <span>₹{subtotal.toLocaleString()}</span>
                   </div>
+                  {appliedCoupon && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-green-400">Discount ({appliedCoupon.code})</span>
+                      <span className="text-green-400">-₹{appliedCoupon.discount.toLocaleString()}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between text-sm">
                     <span className="text-zinc-400">Shipping</span>
                     <span className="text-green-400">FREE</span>

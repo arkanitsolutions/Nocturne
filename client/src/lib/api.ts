@@ -38,11 +38,11 @@ export const api = {
       return res.json();
     },
     
-    add: async (userId: string, productId: string, quantity: number = 1): Promise<CartItem> => {
+    add: async (userId: string, productId: string, quantity: number = 1, size?: string): Promise<CartItem> => {
       const res = await fetch(`${API_BASE}/cart`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, productId, quantity }),
+        body: JSON.stringify({ userId, productId, quantity, size }),
       });
       if (!res.ok) throw new Error("Failed to add to cart");
       return res.json();
@@ -168,6 +168,19 @@ export const api = {
     const res = await fetch(`${API_BASE}/products/search/${encodeURIComponent(query)}`);
     if (!res.ok) throw new Error("Failed to search products");
     return res.json();
+  },
+
+  // Coupons
+  coupons: {
+    validate: async (code: string, orderTotal: number): Promise<{ valid: boolean; coupon?: any; discount?: number; error?: string }> => {
+      const res = await fetch(`${API_BASE}/coupons/validate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code, orderTotal }),
+      });
+      if (!res.ok) throw new Error("Failed to validate coupon");
+      return res.json();
+    },
   },
 
   // Payment

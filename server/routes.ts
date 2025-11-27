@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import adminRouter, { verifyAdminToken } from "./admin";
 import uploadRouter from "./upload";
+import { emailService } from "./email-service";
 import Razorpay from "razorpay";
 import crypto from "crypto";
 
@@ -13,7 +14,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     insertOrderItemSchema,
     insertProductSchema,
     insertWishlistItemSchema,
-    insertProductReviewSchema
+    insertProductReviewSchema,
+    insertCouponSchema
   } = await import("@shared/schema");
   const { z } = await import("zod");
 
@@ -162,20 +164,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const orderData = insertOrderSchema.parse(req.body.order);
       const items = z.array(insertOrderItemSchema).parse(req.body.items);
-      
+
+      // If coupon was applied, increment usage
+      if (orderData.couponCode) {
+        await storage.incrementCouponUsage(orderData.couponCode);
+      }
+
       const order = await storage.createOrder(orderData);
-      
-      await Promise.all(
-        items.map(item => storage.createOrderItem({ ...item, orderId: order.id }))
+
+      // Create order items with product details for email
+      const createdItems = await Promise.all(
+        items.map(async (item) => {
+          const product = await storage.getProduct(item.productId);
+          return storage.createOrderItem({
+            ...item,
+            orderId: order.id,
+            productName: product?.name,
+            productImage: product?.image,
+          });
+        })
       );
-      
+
       await storage.clearCart(orderData.userId);
-      
+
+      // Send order confirmation email
+      if (orderData.userEmail) {
+        emailService.sendOrderConfirmation(order, createdItems).catch(console.error);
+      }
+
       res.json(order);
     } catch (error) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
+      console.error("Order creation error:", error);
       res.status(500).json({ error: "Failed to create order" });
     }
   });
@@ -267,6 +289,110 @@ export async function registerRoutes(app: Express): Promise<Server> {
     );
 
     res.json(results);
+  });
+
+  // ========== COUPONS ==========
+
+  // Validate coupon
+  app.post("/api/coupons/validate", async (req, res) => {
+    try {
+      const { code, orderTotal } = req.body;
+      if (!code || orderTotal === undefined) {
+        return res.status(400).json({ error: "Code and orderTotal required" });
+      }
+
+      const result = await storage.validateCoupon(code, parseFloat(orderTotal));
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to validate coupon" });
+    }
+  });
+
+  // Admin: Get all coupons
+  app.get("/api/admin/coupons", verifyAdminToken, async (req, res) => {
+    const allCoupons = await storage.getCoupons();
+    res.json(allCoupons);
+  });
+
+  // Admin: Create coupon
+  app.post("/api/admin/coupons", verifyAdminToken, async (req, res) => {
+    try {
+      const data = insertCouponSchema.parse(req.body);
+      const coupon = await storage.createCoupon(data);
+      res.json(coupon);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      res.status(500).json({ error: "Failed to create coupon" });
+    }
+  });
+
+  // Admin: Update coupon
+  app.put("/api/admin/coupons/:id", verifyAdminToken, async (req, res) => {
+    try {
+      const coupon = await storage.updateCoupon(req.params.id, req.body);
+      if (!coupon) {
+        return res.status(404).json({ error: "Coupon not found" });
+      }
+      res.json(coupon);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update coupon" });
+    }
+  });
+
+  // Admin: Delete coupon
+  app.delete("/api/admin/coupons/:id", verifyAdminToken, async (req, res) => {
+    await storage.deleteCoupon(req.params.id);
+    res.json({ success: true });
+  });
+
+  // ========== ANALYTICS ==========
+
+  // Admin: Get analytics
+  app.get("/api/admin/analytics", verifyAdminToken, async (req, res) => {
+    try {
+      const analytics = await storage.getAnalytics();
+      res.json(analytics);
+    } catch (error) {
+      console.error("Analytics error:", error);
+      res.status(500).json({ error: "Failed to get analytics" });
+    }
+  });
+
+  // Admin: Get all orders (for admin dashboard)
+  app.get("/api/admin/orders", verifyAdminToken, async (req, res) => {
+    try {
+      // Get all users' orders by getting orders with empty string pattern
+      const allOrders = await storage.getAnalytics();
+      res.json(allOrders.recentOrders);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to get orders" });
+    }
+  });
+
+  // Admin: Update order status with optional tracking & email
+  app.patch("/api/admin/orders/:id/status", verifyAdminToken, async (req, res) => {
+    try {
+      const { status, trackingNumber } = req.body;
+      if (!status) {
+        return res.status(400).json({ error: "Status required" });
+      }
+
+      const order = await storage.updateOrderStatus(req.params.id, status, trackingNumber);
+      if (!order) {
+        return res.status(404).json({ error: "Order not found" });
+      }
+
+      // Send shipping email if status is 'shipped' and tracking number provided
+      if (status === 'shipped' && trackingNumber && order.userEmail) {
+        await emailService.sendShippingUpdate(order, trackingNumber);
+      }
+
+      res.json(order);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update order status" });
+    }
   });
 
   // Razorpay Payment Routes

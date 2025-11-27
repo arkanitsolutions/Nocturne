@@ -17,9 +17,19 @@ import {
   DollarSign,
   Tag,
   FileText,
-  CheckCircle
+  CheckCircle,
+  BarChart3,
+  Ticket,
+  ShoppingBag,
+  Users,
+  Calendar,
+  Percent,
+  Truck,
+  Eye
 } from 'lucide-react';
 import { toast } from 'sonner';
+
+type TabType = 'products' | 'analytics' | 'coupons' | 'orders';
 
 interface Product {
   id: string;
@@ -29,6 +39,45 @@ interface Product {
   image: string;
   category: string;
   stock: number;
+  sizes?: { XS: number; S: number; M: number; L: number; XL: number; XXL: number } | null;
+}
+
+interface Coupon {
+  id: string;
+  code: string;
+  description?: string;
+  discountType: string;
+  discountValue: string;
+  minOrderAmount?: string;
+  maxDiscount?: string;
+  usageLimit?: number;
+  usedCount?: number;
+  validFrom?: string;
+  validUntil?: string;
+  isActive?: boolean;
+}
+
+interface Order {
+  id: string;
+  userId: string;
+  userEmail?: string;
+  userName?: string;
+  total: string;
+  status: string;
+  paymentMethod: string;
+  createdAt: string;
+  trackingNumber?: string;
+}
+
+interface Analytics {
+  totalRevenue: number;
+  totalOrders: number;
+  totalProducts: number;
+  totalCustomers: number;
+  recentOrders: Order[];
+  topProducts: { productId: string; name: string; totalSold: number; revenue: number }[];
+  salesByDay: { date: string; revenue: number; orders: number }[];
+  ordersByStatus: { status: string; count: number }[];
 }
 
 // Product Card Component (Premium Grid View)
@@ -490,6 +539,7 @@ export default function AdminDashboard() {
   const queryClient = useQueryClient();
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [activeTab, setActiveTab] = useState<TabType>('products');
 
   // Check admin auth
   useEffect(() => {
@@ -510,6 +560,20 @@ export default function AdminDashboard() {
       if (!response.ok) throw new Error('Failed to fetch products');
       return response.json();
     },
+  });
+
+  // Fetch analytics
+  const { data: analytics, isLoading: analyticsLoading } = useQuery<Analytics>({
+    queryKey: ['admin-analytics'],
+    queryFn: async () => {
+      const token = localStorage.getItem('adminToken');
+      const response = await fetch('/api/admin/analytics', {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (!response.ok) throw new Error('Failed to fetch analytics');
+      return response.json();
+    },
+    enabled: activeTab === 'analytics',
   });
 
   const handleLogout = () => {
@@ -555,8 +619,38 @@ export default function AdminDashboard() {
         </div>
       </header>
 
+      {/* Tab Navigation */}
+      <div className="border-b border-white/10 bg-black/20 backdrop-blur-xl sticky top-20 z-30">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex gap-1 overflow-x-auto">
+            {[
+              { id: 'products' as TabType, label: 'Products', icon: Package },
+              { id: 'analytics' as TabType, label: 'Analytics', icon: BarChart3 },
+              { id: 'orders' as TabType, label: 'Orders', icon: ShoppingBag },
+              { id: 'coupons' as TabType, label: 'Coupons', icon: Ticket },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-2 px-6 py-4 text-sm font-medium transition-all border-b-2 whitespace-nowrap ${
+                  activeTab === tab.id
+                    ? 'border-white text-white bg-white/5'
+                    : 'border-transparent text-zinc-500 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                <tab.icon className="w-4 h-4" />
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        {/* Products Tab */}
+        {activeTab === 'products' && (
+          <>
         {/* Premium Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
           <motion.div
@@ -693,6 +787,257 @@ export default function AdminDashboard() {
               ))}
             </AnimatePresence>
           </motion.div>
+        )}
+          </>
+        )}
+
+        {/* Analytics Tab */}
+        {activeTab === 'analytics' && (
+          <div className="space-y-8">
+            {analyticsLoading ? (
+              <div className="flex items-center justify-center h-96">
+                <motion.div
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                >
+                  <BarChart3 className="w-8 h-8 text-zinc-600" />
+                </motion.div>
+              </div>
+            ) : analytics ? (
+              <>
+                {/* Analytics Stats Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.1 }}
+                    className="bg-gradient-to-br from-green-500/20 to-green-600/10 border border-green-500/30 rounded-2xl p-6"
+                  >
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="p-3 bg-green-500/20 rounded-xl">
+                        <DollarSign className="w-6 h-6 text-green-400" />
+                      </div>
+                      <TrendingUp className="w-5 h-5 text-green-400" />
+                    </div>
+                    <div className="text-green-400/70 text-sm mb-2">Total Revenue</div>
+                    <div className="font-serif text-3xl font-light text-white">₹{analytics.totalRevenue.toLocaleString()}</div>
+                  </motion.div>
+
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.2 }}
+                    className="bg-gradient-to-br from-blue-500/20 to-blue-600/10 border border-blue-500/30 rounded-2xl p-6"
+                  >
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="p-3 bg-blue-500/20 rounded-xl">
+                        <ShoppingBag className="w-6 h-6 text-blue-400" />
+                      </div>
+                    </div>
+                    <div className="text-blue-400/70 text-sm mb-2">Total Orders</div>
+                    <div className="font-serif text-3xl font-light text-white">{analytics.totalOrders}</div>
+                  </motion.div>
+
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.3 }}
+                    className="bg-gradient-to-br from-purple-500/20 to-purple-600/10 border border-purple-500/30 rounded-2xl p-6"
+                  >
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="p-3 bg-purple-500/20 rounded-xl">
+                        <Users className="w-6 h-6 text-purple-400" />
+                      </div>
+                    </div>
+                    <div className="text-purple-400/70 text-sm mb-2">Total Customers</div>
+                    <div className="font-serif text-3xl font-light text-white">{analytics.totalCustomers}</div>
+                  </motion.div>
+
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.4 }}
+                    className="bg-gradient-to-br from-orange-500/20 to-orange-600/10 border border-orange-500/30 rounded-2xl p-6"
+                  >
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="p-3 bg-orange-500/20 rounded-xl">
+                        <Package className="w-6 h-6 text-orange-400" />
+                      </div>
+                    </div>
+                    <div className="text-orange-400/70 text-sm mb-2">Total Products</div>
+                    <div className="font-serif text-3xl font-light text-white">{analytics.totalProducts}</div>
+                  </motion.div>
+                </div>
+
+                {/* Sales Chart */}
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.5 }}
+                  className="bg-white/5 border border-white/10 rounded-2xl p-6"
+                >
+                  <h3 className="font-serif text-xl font-light text-white mb-6">Sales Overview (Last 7 Days)</h3>
+                  <div className="h-64 flex items-end gap-2">
+                    {analytics.salesByDay.map((day, index) => {
+                      const maxRevenue = Math.max(...analytics.salesByDay.map(d => d.revenue), 1);
+                      const height = (day.revenue / maxRevenue) * 100;
+                      return (
+                        <div key={day.date} className="flex-1 flex flex-col items-center gap-2">
+                          <div className="w-full flex flex-col items-center">
+                            <span className="text-xs text-zinc-400 mb-1">₹{day.revenue.toLocaleString()}</span>
+                            <motion.div
+                              initial={{ height: 0 }}
+                              animate={{ height: `${Math.max(height, 5)}%` }}
+                              transition={{ delay: 0.6 + index * 0.1, duration: 0.5 }}
+                              className="w-full bg-gradient-to-t from-blue-600 to-blue-400 rounded-t-lg min-h-[20px]"
+                            />
+                          </div>
+                          <span className="text-xs text-zinc-500">{new Date(day.date).toLocaleDateString('en-US', { weekday: 'short' })}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </motion.div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Order Status Distribution */}
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.6 }}
+                    className="bg-white/5 border border-white/10 rounded-2xl p-6"
+                  >
+                    <h3 className="font-serif text-xl font-light text-white mb-6">Order Status</h3>
+                    <div className="space-y-4">
+                      {analytics.ordersByStatus.map((status) => {
+                        const total = analytics.ordersByStatus.reduce((sum, s) => sum + s.count, 0);
+                        const percentage = total > 0 ? (status.count / total) * 100 : 0;
+                        const colors: Record<string, string> = {
+                          pending: 'bg-yellow-500',
+                          processing: 'bg-blue-500',
+                          shipped: 'bg-purple-500',
+                          delivered: 'bg-green-500',
+                          cancelled: 'bg-red-500',
+                        };
+                        return (
+                          <div key={status.status} className="space-y-2">
+                            <div className="flex justify-between text-sm">
+                              <span className="text-zinc-400 capitalize">{status.status}</span>
+                              <span className="text-white">{status.count} ({percentage.toFixed(0)}%)</span>
+                            </div>
+                            <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+                              <motion.div
+                                initial={{ width: 0 }}
+                                animate={{ width: `${percentage}%` }}
+                                transition={{ delay: 0.7, duration: 0.5 }}
+                                className={`h-full ${colors[status.status] || 'bg-zinc-500'} rounded-full`}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </motion.div>
+
+                  {/* Top Products */}
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.7 }}
+                    className="bg-white/5 border border-white/10 rounded-2xl p-6"
+                  >
+                    <h3 className="font-serif text-xl font-light text-white mb-6">Top Selling Products</h3>
+                    <div className="space-y-4">
+                      {analytics.topProducts.length === 0 ? (
+                        <p className="text-zinc-500 text-center py-8">No sales data yet</p>
+                      ) : (
+                        analytics.topProducts.slice(0, 5).map((product, index) => (
+                          <div key={product.productId} className="flex items-center gap-4 p-3 bg-white/5 rounded-xl">
+                            <div className="w-8 h-8 bg-white/10 rounded-full flex items-center justify-center text-sm font-medium">
+                              {index + 1}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-white font-medium truncate">{product.name}</p>
+                              <p className="text-sm text-zinc-500">{product.totalSold} sold</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-green-400 font-medium">₹{product.revenue.toLocaleString()}</p>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </motion.div>
+                </div>
+
+                {/* Recent Orders */}
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.8 }}
+                  className="bg-white/5 border border-white/10 rounded-2xl p-6"
+                >
+                  <h3 className="font-serif text-xl font-light text-white mb-6">Recent Orders</h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b border-white/10">
+                          <th className="text-left py-3 px-4 text-sm text-zinc-500 font-medium">Order ID</th>
+                          <th className="text-left py-3 px-4 text-sm text-zinc-500 font-medium">Customer</th>
+                          <th className="text-left py-3 px-4 text-sm text-zinc-500 font-medium">Amount</th>
+                          <th className="text-left py-3 px-4 text-sm text-zinc-500 font-medium">Status</th>
+                          <th className="text-left py-3 px-4 text-sm text-zinc-500 font-medium">Date</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {analytics.recentOrders.slice(0, 5).map((order) => (
+                          <tr key={order.id} className="border-b border-white/5 hover:bg-white/5">
+                            <td className="py-3 px-4 text-sm text-white font-mono">#{order.id.slice(0, 8)}</td>
+                            <td className="py-3 px-4 text-sm text-zinc-300">{order.userName || order.userEmail || 'Guest'}</td>
+                            <td className="py-3 px-4 text-sm text-white">₹{parseFloat(order.total).toLocaleString()}</td>
+                            <td className="py-3 px-4">
+                              <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                order.status === 'delivered' ? 'bg-green-500/20 text-green-400' :
+                                order.status === 'shipped' ? 'bg-purple-500/20 text-purple-400' :
+                                order.status === 'processing' ? 'bg-blue-500/20 text-blue-400' :
+                                order.status === 'cancelled' ? 'bg-red-500/20 text-red-400' :
+                                'bg-yellow-500/20 text-yellow-400'
+                              }`}>
+                                {order.status}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 text-sm text-zinc-500">
+                              {new Date(order.createdAt).toLocaleDateString()}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </motion.div>
+              </>
+            ) : (
+              <div className="text-center py-12 text-zinc-500">No analytics data available</div>
+            )}
+          </div>
+        )}
+
+        {/* Orders Tab Placeholder */}
+        {activeTab === 'orders' && (
+          <div className="text-center py-12">
+            <ShoppingBag className="w-12 h-12 text-zinc-600 mx-auto mb-4" />
+            <h3 className="text-xl font-light text-white mb-2">Orders Management</h3>
+            <p className="text-zinc-500">View and manage customer orders</p>
+          </div>
+        )}
+
+        {/* Coupons Tab Placeholder */}
+        {activeTab === 'coupons' && (
+          <div className="text-center py-12">
+            <Ticket className="w-12 h-12 text-zinc-600 mx-auto mb-4" />
+            <h3 className="text-xl font-light text-white mb-2">Coupon Management</h3>
+            <p className="text-zinc-500">Create and manage promotional coupons</p>
+          </div>
         )}
       </div>
 
