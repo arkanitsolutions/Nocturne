@@ -428,6 +428,15 @@ export default function ProductDetail() {
             )}
           </div>
         </div>
+
+        {/* Related Products */}
+        {product?.category && (
+          <RelatedProducts
+            category={product.category}
+            currentProductId={productId}
+            onProductClick={(id) => setLocation(`/product/${id}`)}
+          />
+        )}
       </div>
 
       {/* Size Guide Modal */}
@@ -516,3 +525,63 @@ export default function ProductDetail() {
   );
 }
 
+// Related Products Component
+function RelatedProducts({
+  category,
+  currentProductId,
+  onProductClick
+}: {
+  category: string;
+  currentProductId: string;
+  onProductClick: (id: string) => void;
+}) {
+  const { data: products = [] } = useQuery({
+    queryKey: ["related-products", category],
+    queryFn: () => api.products.getByCategory(category),
+  });
+
+  const relatedProducts = products.filter(p => p.id !== currentProductId).slice(0, 4);
+
+  if (relatedProducts.length === 0) return null;
+
+  return (
+    <div className="mt-24 border-t border-white/10 pt-16">
+      <div className="text-center mb-12">
+        <span className="font-mono text-xs text-white/40 tracking-[0.3em]">YOU MAY ALSO LIKE</span>
+        <h2 className="font-serif text-3xl text-white mt-3">Related Pieces</h2>
+        <div className="w-16 h-px bg-gradient-to-r from-transparent via-white/50 to-transparent mx-auto mt-4" />
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+        {relatedProducts.map((product, index) => (
+          <motion.div
+            key={product.id}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: index * 0.1 }}
+            whileHover={{ y: -8 }}
+            onClick={() => onProductClick(product.id)}
+            className="group cursor-pointer"
+          >
+            <div className="relative aspect-[3/4] overflow-hidden rounded-lg bg-white/5 border border-white/10 group-hover:border-white/30 transition-all">
+              <img
+                src={product.imageUrl}
+                alt={product.name}
+                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+              <div className="absolute bottom-4 left-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                <p className="text-white text-sm font-medium truncate">{product.name}</p>
+                <p className="text-white/60 text-xs mt-1">₹{product.price}</p>
+              </div>
+            </div>
+            <div className="mt-3 group-hover:opacity-0 transition-opacity">
+              <p className="text-white text-sm font-medium truncate">{product.name}</p>
+              <p className="text-white/60 text-xs mt-1">₹{product.price}</p>
+            </div>
+          </motion.div>
+        ))}
+      </div>
+    </div>
+  );
+}
