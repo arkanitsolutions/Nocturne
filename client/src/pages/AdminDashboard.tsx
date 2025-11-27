@@ -534,6 +534,544 @@ function ProductModal({
   );
 }
 
+// Orders Tab Component
+function OrdersTab() {
+  const queryClient = useQueryClient();
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [trackingNumber, setTrackingNumber] = useState('');
+
+  const { data: orders = [], isLoading } = useQuery<Order[]>({
+    queryKey: ['admin-orders'],
+    queryFn: async () => {
+      const token = localStorage.getItem('adminToken');
+      const response = await fetch('/api/admin/orders', {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (!response.ok) throw new Error('Failed to fetch orders');
+      return response.json();
+    },
+  });
+
+  const updateStatusMutation = useMutation({
+    mutationFn: async ({ orderId, status, trackingNumber }: { orderId: string; status: string; trackingNumber?: string }) => {
+      const token = localStorage.getItem('adminToken');
+      const response = await fetch(`/api/admin/orders/${orderId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ status, trackingNumber }),
+      });
+      if (!response.ok) throw new Error('Failed to update status');
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-orders'] });
+      toast.success('Order status updated!');
+      setSelectedOrder(null);
+      setTrackingNumber('');
+    },
+  });
+
+  const statusOptions = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'];
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: "linear" }}>
+          <ShoppingBag className="w-8 h-8 text-zinc-600" />
+        </motion.div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="font-serif text-3xl font-light tracking-wide text-white mb-2">Orders</h2>
+          <p className="text-zinc-500 text-sm">{orders.length} total orders</p>
+        </div>
+      </div>
+
+      {orders.length === 0 ? (
+        <div className="text-center py-16 bg-white/5 border border-white/10 rounded-2xl">
+          <ShoppingBag className="w-12 h-12 text-zinc-600 mx-auto mb-4" />
+          <h3 className="text-xl font-light text-white mb-2">No Orders Yet</h3>
+          <p className="text-zinc-500">Orders will appear here when customers make purchases</p>
+        </div>
+      ) : (
+        <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-white/10 bg-white/5">
+                  <th className="text-left py-4 px-6 text-sm text-zinc-400 font-medium">Order ID</th>
+                  <th className="text-left py-4 px-6 text-sm text-zinc-400 font-medium">Customer</th>
+                  <th className="text-left py-4 px-6 text-sm text-zinc-400 font-medium">Amount</th>
+                  <th className="text-left py-4 px-6 text-sm text-zinc-400 font-medium">Payment</th>
+                  <th className="text-left py-4 px-6 text-sm text-zinc-400 font-medium">Status</th>
+                  <th className="text-left py-4 px-6 text-sm text-zinc-400 font-medium">Date</th>
+                  <th className="text-left py-4 px-6 text-sm text-zinc-400 font-medium">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {orders.map((order) => (
+                  <tr key={order.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                    <td className="py-4 px-6 text-sm text-white font-mono">#{order.id.slice(0, 8)}</td>
+                    <td className="py-4 px-6">
+                      <div>
+                        <p className="text-sm text-white">{order.userName || 'Guest'}</p>
+                        <p className="text-xs text-zinc-500">{order.userEmail}</p>
+                      </div>
+                    </td>
+                    <td className="py-4 px-6 text-sm text-white font-medium">₹{parseFloat(order.total).toLocaleString()}</td>
+                    <td className="py-4 px-6 text-sm text-zinc-400 capitalize">{order.paymentMethod}</td>
+                    <td className="py-4 px-6">
+                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                        order.status === 'delivered' ? 'bg-green-500/20 text-green-400 border border-green-500/30' :
+                        order.status === 'shipped' ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30' :
+                        order.status === 'processing' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' :
+                        order.status === 'cancelled' ? 'bg-red-500/20 text-red-400 border border-red-500/30' :
+                        'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
+                      }`}>
+                        {order.status}
+                      </span>
+                    </td>
+                    <td className="py-4 px-6 text-sm text-zinc-500">{new Date(order.createdAt).toLocaleDateString()}</td>
+                    <td className="py-4 px-6">
+                      <button
+                        onClick={() => setSelectedOrder(order)}
+                        className="flex items-center gap-1 px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-xs text-white transition-colors"
+                      >
+                        <Eye className="w-3 h-3" />
+                        Manage
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Order Detail Modal */}
+      <AnimatePresence>
+        {selectedOrder && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+            onClick={() => setSelectedOrder(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-zinc-900 border border-white/10 rounded-2xl w-full max-w-lg p-6"
+            >
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="font-serif text-xl text-white">Order #{selectedOrder.id.slice(0, 8)}</h3>
+                <button onClick={() => setSelectedOrder(null)} className="p-2 hover:bg-white/10 rounded-full">
+                  <X className="w-5 h-5 text-zinc-400" />
+                </button>
+              </div>
+
+              <div className="space-y-4 mb-6">
+                <div className="flex justify-between text-sm">
+                  <span className="text-zinc-500">Customer</span>
+                  <span className="text-white">{selectedOrder.userName || selectedOrder.userEmail}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-zinc-500">Amount</span>
+                  <span className="text-white">₹{parseFloat(selectedOrder.total).toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-zinc-500">Current Status</span>
+                  <span className="text-white capitalize">{selectedOrder.status}</span>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm text-zinc-400 mb-2">Update Status</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {statusOptions.map((status) => (
+                      <button
+                        key={status}
+                        onClick={() => updateStatusMutation.mutate({ orderId: selectedOrder.id, status, trackingNumber: status === 'shipped' ? trackingNumber : undefined })}
+                        disabled={updateStatusMutation.isPending}
+                        className={`py-2 px-3 rounded-lg text-xs font-medium transition-all ${
+                          selectedOrder.status === status
+                            ? 'bg-white text-black'
+                            : 'bg-white/10 text-white hover:bg-white/20'
+                        }`}
+                      >
+                        {status}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {selectedOrder.status !== 'shipped' && selectedOrder.status !== 'delivered' && (
+                  <div>
+                    <label className="block text-sm text-zinc-400 mb-2">Tracking Number (for shipped)</label>
+                    <input
+                      type="text"
+                      value={trackingNumber}
+                      onChange={(e) => setTrackingNumber(e.target.value)}
+                      placeholder="Enter tracking number..."
+                      className="w-full bg-white/5 border border-white/10 text-white px-4 py-2 rounded-lg focus:outline-none focus:border-white/30"
+                    />
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// Coupons Tab Component
+function CouponsTab() {
+  const queryClient = useQueryClient();
+  const [showAddCoupon, setShowAddCoupon] = useState(false);
+  const [editingCoupon, setEditingCoupon] = useState<Coupon | null>(null);
+
+  const { data: coupons = [], isLoading } = useQuery<Coupon[]>({
+    queryKey: ['admin-coupons'],
+    queryFn: async () => {
+      const token = localStorage.getItem('adminToken');
+      const response = await fetch('/api/admin/coupons', {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (!response.ok) throw new Error('Failed to fetch coupons');
+      return response.json();
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const token = localStorage.getItem('adminToken');
+      const response = await fetch(`/api/admin/coupons/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (!response.ok) throw new Error('Failed to delete coupon');
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-coupons'] });
+      toast.success('Coupon deleted!');
+    },
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: "linear" }}>
+          <Ticket className="w-8 h-8 text-zinc-600" />
+        </motion.div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="font-serif text-3xl font-light tracking-wide text-white mb-2">Coupons</h2>
+          <p className="text-zinc-500 text-sm">{coupons.length} active coupons</p>
+        </div>
+        <button
+          onClick={() => setShowAddCoupon(true)}
+          className="flex items-center gap-2 bg-white text-black px-6 py-3 rounded-full font-medium hover:bg-zinc-200 transition-all"
+        >
+          <Plus className="w-5 h-5" />
+          Add Coupon
+        </button>
+      </div>
+
+      {coupons.length === 0 ? (
+        <div className="text-center py-16 bg-white/5 border border-white/10 rounded-2xl">
+          <Ticket className="w-12 h-12 text-zinc-600 mx-auto mb-4" />
+          <h3 className="text-xl font-light text-white mb-2">No Coupons Yet</h3>
+          <p className="text-zinc-500 mb-6">Create promotional codes to boost sales</p>
+          <button
+            onClick={() => setShowAddCoupon(true)}
+            className="flex items-center gap-2 bg-white text-black px-6 py-3 rounded-full font-medium hover:bg-zinc-200 transition-all mx-auto"
+          >
+            <Plus className="w-5 h-5" />
+            Create First Coupon
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {coupons.map((coupon) => (
+            <motion.div
+              key={coupon.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-gradient-to-br from-white/10 to-white/5 border border-white/10 rounded-2xl p-6 hover:border-white/20 transition-all"
+            >
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-purple-500/20 rounded-lg">
+                    <Percent className="w-5 h-5 text-purple-400" />
+                  </div>
+                  <div>
+                    <h3 className="font-mono text-lg font-bold text-white">{coupon.code}</h3>
+                    <p className="text-xs text-zinc-500">{coupon.description || 'No description'}</p>
+                  </div>
+                </div>
+                <span className={`px-2 py-1 rounded-full text-xs ${
+                  coupon.isActive !== false ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
+                }`}>
+                  {coupon.isActive !== false ? 'Active' : 'Inactive'}
+                </span>
+              </div>
+
+              <div className="space-y-2 mb-4">
+                <div className="flex justify-between text-sm">
+                  <span className="text-zinc-500">Discount</span>
+                  <span className="text-white font-medium">
+                    {coupon.discountType === 'percentage'
+                      ? `${coupon.discountValue}%`
+                      : `₹${parseFloat(coupon.discountValue).toLocaleString()}`}
+                  </span>
+                </div>
+                {coupon.minOrderAmount && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-zinc-500">Min Order</span>
+                    <span className="text-zinc-300">₹{parseFloat(coupon.minOrderAmount).toLocaleString()}</span>
+                  </div>
+                )}
+                {coupon.usageLimit && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-zinc-500">Usage</span>
+                    <span className="text-zinc-300">{coupon.usedCount || 0} / {coupon.usageLimit}</span>
+                  </div>
+                )}
+                {coupon.validUntil && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-zinc-500">Expires</span>
+                    <span className="text-zinc-300">{new Date(coupon.validUntil).toLocaleDateString()}</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setEditingCoupon(coupon)}
+                  className="flex-1 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-sm text-white transition-all"
+                >
+                  Edit
+                </button>
+                <button
+                  onClick={() => {
+                    if (confirm(`Delete coupon "${coupon.code}"?`)) {
+                      deleteMutation.mutate(coupon.id);
+                    }
+                  }}
+                  className="p-2 bg-red-500/20 hover:bg-red-500/30 rounded-lg text-red-400 transition-all"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      )}
+
+      {/* Coupon Modal */}
+      {(showAddCoupon || editingCoupon) && (
+        <CouponModal
+          coupon={editingCoupon}
+          onClose={() => { setShowAddCoupon(false); setEditingCoupon(null); }}
+          onSuccess={() => {
+            setShowAddCoupon(false);
+            setEditingCoupon(null);
+            queryClient.invalidateQueries({ queryKey: ['admin-coupons'] });
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// Coupon Modal
+function CouponModal({ coupon, onClose, onSuccess }: { coupon?: Coupon | null; onClose: () => void; onSuccess: () => void }) {
+  const [formData, setFormData] = useState({
+    code: coupon?.code || '',
+    description: coupon?.description || '',
+    discountType: coupon?.discountType || 'percentage',
+    discountValue: coupon?.discountValue || '',
+    minOrderAmount: coupon?.minOrderAmount || '',
+    maxDiscount: coupon?.maxDiscount || '',
+    usageLimit: coupon?.usageLimit?.toString() || '',
+    validUntil: coupon?.validUntil ? new Date(coupon.validUntil).toISOString().split('T')[0] : '',
+    isActive: coupon?.isActive !== false,
+  });
+
+  const mutation = useMutation({
+    mutationFn: async (data: typeof formData) => {
+      const token = localStorage.getItem('adminToken');
+      const url = coupon ? `/api/admin/coupons/${coupon.id}` : '/api/admin/coupons';
+      const method = coupon ? 'PUT' : 'POST';
+
+      const response = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({
+          ...data,
+          usageLimit: data.usageLimit ? parseInt(data.usageLimit) : null,
+          minOrderAmount: data.minOrderAmount || null,
+          maxDiscount: data.maxDiscount || null,
+          validUntil: data.validUntil || null,
+        }),
+      });
+      if (!response.ok) throw new Error('Failed to save coupon');
+      return response.json();
+    },
+    onSuccess: () => {
+      toast.success(coupon ? 'Coupon updated!' : 'Coupon created!');
+      onSuccess();
+    },
+    onError: () => {
+      toast.error('Failed to save coupon');
+    },
+  });
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ scale: 0.9, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.9, opacity: 0 }}
+        onClick={(e) => e.stopPropagation()}
+        className="bg-zinc-900 border border-white/10 rounded-2xl w-full max-w-md p-6"
+      >
+        <div className="flex justify-between items-center mb-6">
+          <h3 className="font-serif text-xl text-white">{coupon ? 'Edit Coupon' : 'Create Coupon'}</h3>
+          <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full">
+            <X className="w-5 h-5 text-zinc-400" />
+          </button>
+        </div>
+
+        <form onSubmit={(e) => { e.preventDefault(); mutation.mutate(formData); }} className="space-y-4">
+          <div>
+            <label className="block text-sm text-zinc-400 mb-2">Coupon Code</label>
+            <input
+              type="text"
+              value={formData.code}
+              onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
+              className="w-full bg-white/5 border border-white/10 text-white px-4 py-2 rounded-lg focus:outline-none focus:border-white/30"
+              placeholder="SAVE20"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm text-zinc-400 mb-2">Description</label>
+            <input
+              type="text"
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              className="w-full bg-white/5 border border-white/10 text-white px-4 py-2 rounded-lg focus:outline-none focus:border-white/30"
+              placeholder="20% off on all items"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm text-zinc-400 mb-2">Discount Type</label>
+              <select
+                value={formData.discountType}
+                onChange={(e) => setFormData({ ...formData, discountType: e.target.value })}
+                className="w-full bg-white/5 border border-white/10 text-white px-4 py-2 rounded-lg focus:outline-none focus:border-white/30"
+              >
+                <option value="percentage">Percentage</option>
+                <option value="fixed">Fixed Amount</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm text-zinc-400 mb-2">Discount Value</label>
+              <input
+                type="number"
+                value={formData.discountValue}
+                onChange={(e) => setFormData({ ...formData, discountValue: e.target.value })}
+                className="w-full bg-white/5 border border-white/10 text-white px-4 py-2 rounded-lg focus:outline-none focus:border-white/30"
+                placeholder={formData.discountType === 'percentage' ? '20' : '100'}
+                required
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm text-zinc-400 mb-2">Min Order (₹)</label>
+              <input
+                type="number"
+                value={formData.minOrderAmount}
+                onChange={(e) => setFormData({ ...formData, minOrderAmount: e.target.value })}
+                className="w-full bg-white/5 border border-white/10 text-white px-4 py-2 rounded-lg focus:outline-none focus:border-white/30"
+                placeholder="500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-zinc-400 mb-2">Usage Limit</label>
+              <input
+                type="number"
+                value={formData.usageLimit}
+                onChange={(e) => setFormData({ ...formData, usageLimit: e.target.value })}
+                className="w-full bg-white/5 border border-white/10 text-white px-4 py-2 rounded-lg focus:outline-none focus:border-white/30"
+                placeholder="100"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm text-zinc-400 mb-2">Valid Until</label>
+            <input
+              type="date"
+              value={formData.validUntil}
+              onChange={(e) => setFormData({ ...formData, validUntil: e.target.value })}
+              className="w-full bg-white/5 border border-white/10 text-white px-4 py-2 rounded-lg focus:outline-none focus:border-white/30"
+            />
+          </div>
+
+          <div className="flex items-center gap-3">
+            <input
+              type="checkbox"
+              id="isActive"
+              checked={formData.isActive}
+              onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
+              className="w-4 h-4"
+            />
+            <label htmlFor="isActive" className="text-sm text-zinc-300">Coupon is active</label>
+          </div>
+
+          <button
+            type="submit"
+            disabled={mutation.isPending}
+            className="w-full bg-white text-black py-3 rounded-full font-medium hover:bg-zinc-200 transition-all disabled:opacity-50"
+          >
+            {mutation.isPending ? 'Saving...' : (coupon ? 'Update Coupon' : 'Create Coupon')}
+          </button>
+        </form>
+      </motion.div>
+    </motion.div>
+  );
+}
+
 export default function AdminDashboard() {
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
@@ -1022,22 +1560,14 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        {/* Orders Tab Placeholder */}
+        {/* Orders Tab */}
         {activeTab === 'orders' && (
-          <div className="text-center py-12">
-            <ShoppingBag className="w-12 h-12 text-zinc-600 mx-auto mb-4" />
-            <h3 className="text-xl font-light text-white mb-2">Orders Management</h3>
-            <p className="text-zinc-500">View and manage customer orders</p>
-          </div>
+          <OrdersTab />
         )}
 
-        {/* Coupons Tab Placeholder */}
+        {/* Coupons Tab */}
         {activeTab === 'coupons' && (
-          <div className="text-center py-12">
-            <Ticket className="w-12 h-12 text-zinc-600 mx-auto mb-4" />
-            <h3 className="text-xl font-light text-white mb-2">Coupon Management</h3>
-            <p className="text-zinc-500">Create and manage promotional coupons</p>
-          </div>
+          <CouponsTab />
         )}
       </div>
 
